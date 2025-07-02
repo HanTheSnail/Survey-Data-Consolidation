@@ -55,20 +55,6 @@ def main():
             
             st.success("✅ Files uploaded successfully!")
             
-            # Display file information
-            col1, col2 = st.columns(2)
-            with col1:
-                st.info(f"Bad Responses: {len(bad_responses_df)} rows")
-                if len(bad_responses_df) > 0:
-                    st.write("**Column A (Email) Preview:**")
-                    st.write(bad_responses_df.iloc[:5, 0])  # Show first 5 rows of column A
-                    
-            with col2:
-                st.info(f"User Data: {len(user_data_df)} rows")
-                if len(user_data_df) > 0:
-                    st.write("**Available Columns:**")
-                    st.write(list(user_data_df.columns))
-            
             # Validate required columns exist
             if len(bad_responses_df.columns) == 0:
                 st.error("❌ Bad responses file appears to be empty or invalid")
@@ -90,21 +76,6 @@ def main():
             else:
                 st.error("❌ User data file doesn't have enough columns")
                 return
-            
-            # Show column mapping
-            st.subheader("🔗 Column Mapping")
-            mapping_col1, mapping_col2 = st.columns(2)
-            
-            with mapping_col1:
-                st.write("**Bad Responses:**")
-                st.write(f"• Email: `{bad_responses_email_col}` (Column A)")
-                
-            with mapping_col2:
-                st.write("**User Data (to be added):**")
-                st.write(f"• User REF: `{user_ref_col}` (Column B)")
-                st.write(f"• Email: `{email_col}` (Column C) - *for matching*")
-                st.write(f"• Lucid Reference: `{lucid_ref_col}` (Column F)")
-                st.write(f"• Country: `{country_col}` (Column H)")
             
             # Process the data merge
             with st.spinner("Processing data consolidation..."):
