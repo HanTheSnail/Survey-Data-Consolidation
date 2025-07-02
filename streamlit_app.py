@@ -3,6 +3,17 @@ import pandas as pd
 import io
 from datetime import datetime
 
+def read_file(uploaded_file):
+    """Read file based on its extension"""
+    file_extension = uploaded_file.name.split('.')[-1].lower()
+    
+    if file_extension == 'csv':
+        return pd.read_csv(uploaded_file)
+    elif file_extension in ['xlsx', 'xls']:
+        return pd.read_excel(uploaded_file)
+    else:
+        raise ValueError(f"Unsupported file format: {file_extension}")
+
 def main():
     st.set_page_config(
         page_title="Survey Data Consolidation Tool",
@@ -18,10 +29,10 @@ def main():
     
     with col1:
         st.subheader("🚫 Bad Responses Sheet")
-        st.markdown("Upload the sheet containing User REF (Column A) of unusable responses")
+        st.markdown("Upload the sheet containing email addresses (Column A) of unusable responses")
         bad_responses_file = st.file_uploader(
-            "Choose bad responses CSV file",
-            type=['csv'],
+            "Choose bad responses file",
+            type=['csv', 'xlsx', 'xls'],
             key="bad_responses"
         )
         
@@ -29,18 +40,18 @@ def main():
         st.subheader("👥 User Data Sheet")
         st.markdown("Upload the complete user data export")
         user_data_file = st.file_uploader(
-            "Choose user data CSV file",
-            type=['csv'],
+            "Choose user data file",
+            type=['csv', 'xlsx', 'xls'],
             key="user_data"
         )
     
     # Process files if both are uploaded
     if bad_responses_file is not None and user_data_file is not None:
         try:
-            # Read the CSV files
+            # Read the files using the flexible reader
             with st.spinner("Reading uploaded files..."):
-                bad_responses_df = pd.read_csv(bad_responses_file)
-                user_data_df = pd.read_csv(user_data_file)
+                bad_responses_df = read_file(bad_responses_file)
+                user_data_df = read_file(user_data_file)
             
             st.success("✅ Files uploaded successfully!")
             
@@ -49,7 +60,7 @@ def main():
             with col1:
                 st.info(f"Bad Responses: {len(bad_responses_df)} rows")
                 if len(bad_responses_df) > 0:
-                    st.write("**Column A (User REF) Preview:**")
+                    st.write("**Column A (Email) Preview:**")
                     st.write(bad_responses_df.iloc[:5, 0])  # Show first 5 rows of column A
                     
             with col2:
@@ -68,7 +79,7 @@ def main():
                 return
             
             # Get column names (assuming 0-indexed, so B=1, C=2, F=5, H=7)
-            bad_responses_ref_col = bad_responses_df.columns[0]  # Column A
+            bad_responses_email_col = bad_responses_df.columns[0]  # Column A (emails)
             
             # For user data, we need to be careful about column indexing
             if len(user_data_df.columns) >= 8:
@@ -86,12 +97,12 @@ def main():
             
             with mapping_col1:
                 st.write("**Bad Responses:**")
-                st.write(f"• User REF: `{bad_responses_ref_col}` (Column A)")
+                st.write(f"• Email: `{bad_responses_email_col}` (Column A)")
                 
             with mapping_col2:
-                st.write("**User Data:**")
+                st.write("**User Data (to be added):**")
                 st.write(f"• User REF: `{user_ref_col}` (Column B)")
-                st.write(f"• Email: `{email_col}` (Column C)")
+                st.write(f"• Email: `{email_col}` (Column C) - *for matching*")
                 st.write(f"• Lucid Reference: `{lucid_ref_col}` (Column F)")
                 st.write(f"• Country: `{country_col}` (Column H)")
             
@@ -100,22 +111,22 @@ def main():
                 # Create a copy of bad responses to avoid modifying original
                 result_df = bad_responses_df.copy()
                 
-                # Merge the data based on User REF
+                # Merge the data based on email addresses, adding User REF, Lucid Reference and Country
                 merged_data = pd.merge(
                     result_df,
                     user_data_df[[user_ref_col, email_col, lucid_ref_col, country_col]],
-                    left_on=bad_responses_ref_col,
-                    right_on=user_ref_col,
+                    left_on=bad_responses_email_col,
+                    right_on=email_col,
                     how='left'
                 )
                 
-                # Drop the duplicate user_ref column from the merge
-                if user_ref_col in merged_data.columns and user_ref_col != bad_responses_ref_col:
-                    merged_data = merged_data.drop(columns=[user_ref_col])
+                # Drop the duplicate email column from the merge if it's different
+                if email_col in merged_data.columns and email_col != bad_responses_email_col:
+                    merged_data = merged_data.drop(columns=[email_col])
                 
                 # Rename columns for clarity
                 final_df = merged_data.rename(columns={
-                    email_col: 'Email',
+                    user_ref_col: 'User_REF',
                     lucid_ref_col: 'Lucid_Reference',
                     country_col: 'Country'
                 })
@@ -126,7 +137,7 @@ def main():
             st.subheader("📈 Results Summary")
             
             total_bad_responses = len(bad_responses_df)
-            matched_responses = final_df['Email'].notna().sum()
+            matched_responses = final_df['User_REF'].notna().sum()
             unmatched_responses = total_bad_responses - matched_responses
             
             summary_col1, summary_col2, summary_col3 = st.columns(3)
@@ -141,7 +152,7 @@ def main():
                 st.metric("Unmatched", unmatched_responses)
             
             if unmatched_responses > 0:
-                st.warning(f"⚠️ {unmatched_responses} User REFs from bad responses were not found in the user data")
+                st.warning(f"⚠️ {unmatched_responses} email addresses from bad responses were not found in the user data")
             
             # Show preview of consolidated data
             st.subheader("👀 Data Preview")
@@ -173,8 +184,8 @@ def main():
         except Exception as e:
             st.error(f"❌ An error occurred while processing the files: {str(e)}")
             st.write("Please check that:")
-            st.write("• Both files are valid CSV format")
-            st.write("• The bad responses file has User REF in the first column")
+            st.write("• Both files are valid CSV, XLSX, or XLS format")
+            st.write("• The bad responses file has email addresses in the first column")
             st.write("• The user data file has the required columns in positions B, C, F, and H")
     
     else:
@@ -183,17 +194,17 @@ def main():
         
         with st.expander("📋 How to use this tool"):
             st.markdown("""
-            **Step 1:** Upload your "Bad Responses" CSV file
-            - This should contain User REF values in Column A
+            **Step 1:** Upload your "Bad Responses" file (CSV, XLSX, or XLS)
+            - This should contain email addresses in Column A
             
-            **Step 2:** Upload your "User Data" CSV file  
+            **Step 2:** Upload your "User Data" file (CSV, XLSX, or XLS)
             - User REF should be in Column B
-            - Email should be in Column C
+            - Email should be in Column C (for matching with bad responses)
             - Lucid Reference should be in Column F
             - Country should be in Column H
             
-            **Step 3:** Review the data preview and download the consolidated CSV
-            - The tool will automatically match User REFs and add the required information
+            **Step 3:** Review the data preview and download the consolidated file
+            - The tool will automatically match email addresses and add User REF, Lucid Reference and Country
             - Unmatched entries will be flagged for your review
             """)
 
